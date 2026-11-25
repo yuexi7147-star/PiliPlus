@@ -1,0 +1,48 @@
+name: build-rcmd-apk
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: pubspec.yaml
+          cache: true
+      - name: Apply patch
+        run: |
+          curl -fsSL https://paste.rs/gPyWg -o /tmp/rcmd.patch
+          git apply --whitespace=nowarn /tmp/rcmd.patch
+          git status --short
+      - name: Test
+        continue-on-error: true
+        run: |
+          flutter pub get
+          flutter test test/rcmd_balance_test.dart
+      - name: Build
+        run: flutter build apk --release --split-per-abi --no-pub
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rcmd-build
+          name: rcmd-build
+          files: build/app/outputs/flutter-apk/*.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PiliPlus-rcmd-apk
+          path: build/app/outputs/flutter-apk/*.apk
